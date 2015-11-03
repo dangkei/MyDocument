@@ -359,17 +359,21 @@ This will cause an immediate termination of the underlying socket.
 Additionally `destroy()` guarantees that no more events or callbacks will be
 triggered for the connection.
 
-另一种方法
+另一种方法调用`destroy()`, 这样会导致立即中断底层的socket连接. 另外不会触发任何事件和回调函数.
 
 ```js
 connection.destroy();
 ```
 
 Unlike `end()` the `destroy()` method does not take a callback argument.
+和`end()`不同`destroy()`没有回调函数参数.
 
 ## Pooling connections
+## 连接池
 
 Use pool directly.
+
+直接使用连接池
 
 ```js
 var mysql = require('mysql');
@@ -389,6 +393,7 @@ pool.query('SELECT 1 + 1 AS solution', function(err, rows, fields) {
 
 Connections can be pooled to ease sharing a single connection, or managing
 multiple connections.
+连接池可以很容易的管理多条连接,并且共享单条连接.
 
 ```js
 var mysql = require('mysql');
@@ -405,6 +410,8 @@ pool.getConnection(function(err, connection) {
 
 When you are done with a connection, just call `connection.release()` and the
 connection will return to the pool, ready to be used again by someone else.
+
+连接是使用完后可以调用`connection.release()`方法. 连接会返回连接池等待下次被调用.
 
 ```js
 var mysql = require('mysql');
@@ -425,34 +432,53 @@ If you would like to close the connection and remove it from the pool, use
 `connection.destroy()` instead. The pool will create a new connection the next
 time one is needed.
 
+如果你喜欢关闭连接后就从连接池删除掉它也可以, 下次调用时连接池会创建一个新的连接. 
+
 Connections are lazily created by the pool. If you configure the pool to allow
 up to 100 connections, but only ever use 5 simultaneously, only 5 connections
 will be made. Connections are also cycled round-robin style, with connections
 being taken from the top of the pool and returning to the bottom.
 
+连接池里所有的连接时被动创建的. 比如你配置连接池最大连接数100. 但是最多只使用5个连接.
+那么只有5个连接被被创建. 所有的池中连接被循环使用.连接池首先调用第一条连接,使用完后将它
+排列到队列末尾
+
 When a previous connection is retrieved from the pool, a ping packet is sent
 to the server to check if the connection is still good.
 
+当刚刚用完的连接返回连接池时, 会发送一个ping包给服务器检查连接是否正常.
+
 ## Pool options
+## 连接池选项
 
 Pools accept all the same options as a connection. When creating a new
 connection, the options are simply passed to the connection constructor. In
 addition to those options pools accept a few extras:
 
+连接池接受创建连接时一样的选项. 当连接池创建连接时会直接把这部分选项直接传递给连接.
+当然还有另外一部分的选项是配置连接池的:
+
 * `acquireTimeout`: The milliseconds before a timeout occurs during the connection
   acquisition. This is slightly different from `connectTimeout`, because acquiring
   a pool connection does not always involve making a connection. (Default: `10000`)
+* 请求超时时间,缺省10秒
 * `waitForConnections`: Determines the pool's action when no connections are
   available and the limit has been reached. If `true`, the pool will queue the
   connection request and call it when one becomes available. If `false`, the
   pool will immediately call back with an error. (Default: `true`)
+* 连接请求等待: 当连接池中连接数达到上限,并且没有空闲可用的连接时,如果该参数为`true`
+  请求将会等待直到有一条连接可以使用. 如果为`false`则立刻返回一个错误.
 * `connectionLimit`: The maximum number of connections to create at once.
   (Default: `10`)
+  同一时刻可以使用的最大连接数,缺省为10.
 * `queueLimit`: The maximum number of connection requests the pool will queue
   before returning an error from `getConnection`. If set to `0`, there is no
   limit to the number of queued connection requests. (Default: `0`)
+  在`getConnection`返回错误之前,等待请求队列中可以排列的最大请求数,如果设为`0`则没有限制.
+  缺省为`0`.
 
 ## Pool events
+## 连接池事件
 
 ### connection
 
@@ -593,7 +619,8 @@ var poolCluster = mysql.createPoolCluster(clusterConfig);
 ```
 
 ## Switching users and altering connection state
-## 改变连接用户和状态
+## 改变连接用户和状态 `changeUser`命令
+
 MySQL offers a changeUser command that allows you to alter the current user and
 other aspects of the connection without shutting down the underlying socket:
 
@@ -705,7 +732,6 @@ The `values` argument will override the `values` in the option object.
 
 注意当第二和第三种方法组合位符可以作为查询参数. 但是不能在查询选项options对象中出现.
 
-
 ```js
 connection.query({
     sql: 'SELECT * FROM `books` WHERE `author` = ?',
@@ -757,11 +783,11 @@ the same `connection.escape()` method internally.
 **Caution** This also differs from prepared statements in that all `?` are
 replaced, even those contained in comments and strings.
 
-警告: 所有的`?`都会被替换.包括注释和字符串中的.
+**警告**: 所有的`?`都会被替换.包括注释和字符串中的.
 
 Different value types are escaped differently, here is how:
 
-不通类型的数据加密后结果不通.
+不同类型的数据加密后结果不通.
 
 * Numbers are left untouched
 * Booleans are converted to `true` / `false`
@@ -852,11 +878,19 @@ console.log(query.sql); // SELECT `username`, `email` FROM `users` WHERE id = 1
 ```
 **Please note that this last character sequence is experimental and syntax might change**
 
+**最后的字符排列还在实验,语法将来可能会变化**
+
 When you pass an Object to `.escape()` or `.query()`, `.escapeId()` is used to avoid SQL injection in object keys.
 
+当你用对象作为查询参数,`.escapeId()`可以用来防止对象键值的SQL注入攻击.
+(JSON对象键值是可以任意原型扩展.攻击者可以随意在JSON对象中加入`.method`这样的方法.)
+
 ### Preparing Queries
+### 查询准备
 
 You can use mysql.format to prepare a query with multiple insertion points, utilizing the proper escaping for ids and values. A simple example of this follows:
+
+你可以使用mysql.format方法来使用多点查询,利用正确的方法防止入侵检测保护数据.例如:
 
 ```js
 var sql = "SELECT * FROM ?? WHERE ?? = ?";
@@ -866,11 +900,19 @@ sql = mysql.format(sql, inserts);
 
 Following this you then have a valid, escaped query that you can then send to the database safely. This is useful if you are looking to prepare the query before actually sending it to the database. As mysql.format is exposed from SqlString.format you also have the option (but are not required) to pass in stringifyObject and timezone, allowing you provide a custom means of turning objects into strings, as well as a location-specific/timezone-aware Date.
 
+接下来你应该做一个验证方法,保护你要发送到数据库的查询数据安全. 在发送到数据库前准备查询语句是非常有用.
+就想mysql.format是暴露的, SqlString.format也有可选项(但不是必选)来传递StringifyObject和时区,允许你提供一个自定义转换对象在字符串. 以及特定时间日期格式.
+
 ### Custom format
+### 自定义格式
 
 If you prefer to have another type of query escape format, there's a connection configuration option you can use to define a custom format function. You can access the connection object if you want to use the built-in `.escape()` or any other connection function.
 
+如果你希望使用其它类型的查询格式, 你可以使用内置`.escape()` 或者其它方法在连接字符串的配置里自定义格式.
+
 Here's an example of how to implement another format:
+
+这是一个实现了自定义格式的例子:
 
 ```js
 connection.config.queryFormat = function (query, values) {
@@ -887,9 +929,12 @@ connection.query("UPDATE posts SET title = :title", { title: "Hello MySQL" });
 ```
 
 ## Getting the id of an inserted row
+## 如何得到已经插入数据的id
 
 If you are inserting a row into a table with an auto increment primary key, you
 can retrieve the insert id like this:
+
+如果你插入的一行数据是一个主键自增长的表. 你可以像这样返回插入的主键.
 
 ```js
 connection.query('INSERT INTO posts SET ?', {title: 'test'}, function(err, result) {
@@ -903,12 +948,21 @@ When dealing with big numbers (above JavaScript Number precision limit), you sho
 consider enabling `supportBigNumbers` option to be able to read the insert id as a
 string, otherwise it will throw.
 
+如果你正字处理长数字类型(超过了Javascript允许范围的), 你应该考虑启用`supportBigNumbers`这个选项
+来以字符串的方式来读取插入的id值. 否则将会报错.
+
 This option is also required when fetching big numbers from the database, otherwise
 you will get values rounded to hundreds or thousands due to the precision limit.
 
+这个选项在从数据库中读取长数字类型的的时候同样需要, 否则由于精度你得到的数据将会有随机几百到
+几千的误差.
+
 ## Getting the number of affected rows
+## 如何得到执行记录数
 
 You can get the number of affected rows from an insert, update or delete statement.
+
+你可以通过下面方法在insert update和delete语句中得到执行行数.
 
 ```js
 connection.query('DELETE FROM posts WHERE title = "wrong"', function (err, result) {
@@ -919,11 +973,14 @@ connection.query('DELETE FROM posts WHERE title = "wrong"', function (err, resul
 ```
 
 ## Getting the number of changed rows
+## 如何得到修改记录数
 
 You can get the number of changed rows from an update statement.
 
 "changedRows" differs from "affectedRows" in that it does not count updated rows
 whose values were not changed.
+
+你可以通过下面方法得到修改记录的数量. 修改记录数和执行记录数不同碍于不统计那些执行后值没有变化的记录.
 
 ```js
 connection.query('UPDATE posts SET ...', function (err, result) {
@@ -934,9 +991,12 @@ connection.query('UPDATE posts SET ...', function (err, result) {
 ```
 
 ## Getting the connection ID
+## 如何得到connection ID和thread ID
 
 You can get the MySQL connection ID ("thread ID") of a given connection using the `threadId`
 property.
+
+你可以通过一个连接的`threadId`属性来得到连接MySQL的connection ID.也就是"thread ID".
 
 ```js
 connection.connect(function(err) {
@@ -946,15 +1006,22 @@ connection.connect(function(err) {
 ```
 
 ## Executing queries in parallel
+## 如何操作并行查询
 
 The MySQL protocol is sequential, this means that you need multiple connections
 to execute queries in parallel. You can use a Pool to manage connections, one
 simple approach is to create one connection per incoming http request.
 
+MySQL执行的通信协议同步的,这意味你需要多个连接来执行并行查询. 你可以使用连接池来管理连接.
+简单的方法就是为每个http请求创建一个连接.
+
 ## Streaming query rows
+## 如何操作数据流.
 
 Sometimes you may want to select large quantities of rows and process each of
 them as they are received. This can be done like this:
+
+有时候你要以流的方式从每条记录中取出一个比较大的数据. 你可以像下面这样做
 
 ```js
 var query = connection.query('SELECT * FROM posts');
@@ -967,6 +1034,7 @@ query
   })
   .on('result', function(row) {
     // Pausing the connnection is useful if your processing involves I/O
+    // 当你在执行I/O操作前在这里暂停connection是非常必要的.
     connection.pause();
 
     processRow(row, function() {
@@ -980,27 +1048,45 @@ query
 
 Please note a few things about the example above:
 
+你能发现上面例子的一些优点.
+
 * Usually you will want to receive a certain amount of rows before starting to
   throttle the connection using `pause()`. This number will depend on the
   amount and size of your rows.
+ 
+  通常你可以在`pause()`操作前收到总共的记录条数. 这个数字取决你所有记录的大小.
+
 * `pause()` / `resume()` operate on the underlying socket and parser. You are
   guaranteed that no more `'result'` events will fire after calling `pause()`.
+
+  `pause()`/`resume()`处理底层的数据的时候保证不会有`result`事件触发.
+
 * You MUST NOT provide a callback to the `query()` method when streaming rows.
+
+  你不用为流数据提供回调函数.
+
 * The `'result'` event will fire for both rows as well as OK packets
   confirming the success of a INSERT/UPDATE query.
+
+  当所有的记录确认成功操作后`result`事件被发送.
+
 * It is very important not to leave the result paused too long, or you may
   encounter `Error: Connection lost: The server closed the connection.`
   The time limit for this is determined by the
   [net_write_timeout setting](https://dev.mysql.com/doc/refman/5.5/en/server-system-variables.html#sysvar_net_write_timeout)
   on your MySQL server.
 
+  最重要的是~ 不要让result事件暂停的太久,否则可能会发生 `Error: Connection lost: The server closed the connection.` 与服务器失去联系, 服务器关闭了了连接. 时间限制决定于你的MySQL服务器设置.
+
 Additionally you may be interested to know that it is currently not possible to
 stream individual row columns, they will always be buffered up entirely. If you
 have a good use case for streaming large fields to and from MySQL, I'd love to
 get your thoughts and contributions on this.
 
-### Piping results with Streams2
+另外现在对单独的列的流操作还没有实现.现在只能全部靠缓存处理,如果你有好的处理MySQL大字段的经验和例子,我非常希望能知道你方案能够用在这里.
 
+### Piping results with Streams2
+### 
 The query object provides a convenience method `.stream([options])` that wraps
 query events into a [Readable](http://nodejs.org/api/stream.html#stream_class_stream_readable)
 [Streams2](http://blog.nodejs.org/2012/12/20/streams2/) object. This
@@ -1010,8 +1096,12 @@ based on downstream congestion and the optional `highWaterMark`. The
 (if you need a byte stream, you will need to use a transform stream, like
 [objstream](https://www.npmjs.com/package/objstream) for example).
 
+这段暂时不理解
+
 For example, piping query results into another stream (with a max buffer of 5
 objects) is simply:
+
+样例, 管道查询结果到另外一个流中(最多5个缓冲对象).
 
 ```js
 connection.query('SELECT * FROM posts')
@@ -1025,11 +1115,15 @@ Support for multiple statements is disabled for security reasons (it allows for
 SQL injection attacks if values are not properly escaped). To use this feature
 you have to enable it for your connection:
 
+支持多语句不考虑安全因素(这样允许SQL注入式攻击). 要使用这个功能你的连接要启用这个选项.
+
 ```js
 var connection = mysql.createConnection({multipleStatements: true});
 ```
 
 Once enabled, you can execute multiple statement queries like any other query:
+
+一旦启用这个选项,你可以在一个查询中输入多条SQL语句.
 
 ```js
 connection.query('SELECT 1; SELECT 2', function(err, results) {
@@ -1043,6 +1137,8 @@ connection.query('SELECT 1; SELECT 2', function(err, results) {
 
 Additionally you can also stream the results of multiple statement queries:
 
+另外你可以用流的方式处理多语句查询的结果. 例如:
+
 ```js
 var query = connection.query('SELECT 1; SELECT 2');
 
@@ -1052,6 +1148,7 @@ query
   })
   .on('result', function(row, index) {
     // index refers to the statement this result belongs to (starts at 0)
+    // index是查询结果的序列.从0开始.
   });
 ```
 
@@ -1060,8 +1157,13 @@ object contains a `err.index` property which tells you which statement caused
 it. MySQL will also stop executing any remaining statements when an error
 occurs.
 
+如果其中一条查询导致了一个错误. 返回的错误对象包含`err.index`属性鞥告诉你是哪条语句导致的错误.
+当一个错误发生后MySQL将会停止执行剩余的查询语句.
+
 Please note that the interface for streaming multiple statement queries is
 experimental and I am looking forward to feedback on it.
+
+**注意, 多语句查询的流处理宫功能也是实验阶段我会继续关注研究者一部分**
 
 ## Stored procedures
 
@@ -1069,17 +1171,26 @@ You can call stored procedures from your queries as with any other mysql driver.
 If the stored procedure produces several result sets, they are exposed to you
 the same way as the results for multiple statement queries.
 
+你可以使用其它mysql驱动在你的查询语句中调用存储过程. 如果存储过程处理的结果也多个结果集. 你可以使用多语句查询一样的方法来处理结果.
+
 ## Joins with overlapping column names
+## 使用join方法时同名字段如何处理
 
 When executing joins, you are likely to get result sets with overlapping column
 names.
+
+当执行joins的语句时,经常会得到查询结果集里有相同列名的情况.
 
 By default, node-mysql will overwrite colliding column names in the
 order the columns are received from MySQL, causing some of the received values
 to be unavailable.
 
+缺省node-mysql会安装从MySQL返回的顺序重新排列列名. 这样会导致收到数据不可用.
+
 However, you can also specify that you want your columns to be nested below
 the table name like this:
+
+不过你也可以使用表名和列名嵌套的方法来指定列名.如下:
 
 ```js
 var options = {sql: '...', nestTables: true};
