@@ -1381,7 +1381,7 @@ error is emitted as an `'error'` event on the connection object. This is
 demonstrated in the example below:
 
 最后很重要的是, 如何致命错误发生却没有挂起的回调函数,普通错误发生也没有他们所属的回调函数.这个错误会触发connection的`'error'`事件. 例如:
-
+  
 ```js
 connection.on('error', function(err) {
   console.log(err.code); // 'ER_BAD_DB_ERROR'
